@@ -54,7 +54,7 @@ The multiplexer will handle from what diode we will read from at a time. The 16:
 
 The following lists parts not listed in the writeup, but are a part of our design:
 - Op-amp LM741
-- Capacitor
+- Capacitor: 0.01 µF
 
 ## Schematic
 
