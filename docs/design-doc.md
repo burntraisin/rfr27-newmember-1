@@ -1,6 +1,6 @@
 # [RFR 2027 Electronics] New Member Project Design Report
 
-**Team 1:** Hank Habashy (hnh34), Rebekah Han (reh129), and Shiven Jariwala (sjj105)
+**Team 1:** Hank Habashy (hnh34), Rebekah Han (reh129), Shiven Jariwala (sjj105), and Dhruv Ajwani (daa307)
 
 ---
 
@@ -21,6 +21,7 @@ To build a temperature sensor, taking analog input and then converting it into d
 |Rebekah Han|New Member|Author|
 |Hank Habashy|New Member||
 |Shiven Jariwala|New Member||
+|Dhruv Ajwani|New Member||
 
 # 4. Research
 
