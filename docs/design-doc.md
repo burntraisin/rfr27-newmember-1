@@ -73,14 +73,14 @@ The image below is our schematic flow chart. The analog signal from the temperat
 ```C
 const int TEMP_PIN = A0;
 const int LED_PIN = 13;
-const int MUX_S0 = D1;
-const int MUX_S1 = D2;
-const int MUX_S2 = D3;
-const int MUX_S3 = D4;
+const int MUX_S0 = 2;
+const int MUX_S1 = 3;
+const int MUX_S2 = 4;
+const int MUX_S3 = 5;
 
 // Temperature when the ADC is at 0V in Celsius
-const double 0V_TEMP = 120.0;
-const double 5V_TMP = -40.0;
+const double TEMP_AT_0V = 120.0;
+const double TEMP_AT_5V = -40.0;
 
 const float TEMP_MAX = 60.0;
 
