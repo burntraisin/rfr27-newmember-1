@@ -25,15 +25,19 @@ To build a temperature sensor, taking analog input and then converting it into d
 
 # 4. Research
 
+Firstly, the temperature diodes involved following a similar setup as to what was written in the datasheet. But since we are using a 5V source and aimed to achieve a forward (typical) current of 1 mA, our needed resistor ended up being 3.1 kΩ. Given that I_out = [V_cc - V_out] / R, and V_cc = 5, V_out = 1.86, and I_out = 0.001 A, R = 3.1 kΩ.
+
 Given that our temperature sensors' output voltage ranges from 1.30 V to 2.44 V and that the Arduino's ADC has 10-bit resolution with a default reference voltage of 5 V, we can shift and amplify the signals from the temperature sensors in such a way that its range becomes 0 - 5 V. Keeping this in mind, we can also use an RC low-pass filter to keep lower frequency ranges since temperature signals change slowly in comparison to other signals. This will help filter out any electrical noise. Using [this low pass filter calculator](https://www.digikey.com/en/resources/conversion-calculators/conversion-calculator-low-pass-and-high-pass-filter), to achieve a cutoff frequency at ~10 kHz, our resistor would need to be 1.6 kΩ and the capacitance would need to be 0.01 μF.
 
-To handle amplification, a differential op-amp can be used to handle both level shifting and amplification. We would like the lowest temperature (i.e. -40°C) to be 5 V instead of the original 2.44 V (from the diode) and the highest temperature (120°C) to be 0 V instead of 1.30 V. Thus the gain for the op-amp shall be about 4.38. This is because 5 V/1.14 V = 4.386, where the 5 V is from the Arduino and the 1.14 V is the range of the temperature diodes (2.44 - 1.30 = 1.14). We used this [differential amplifier calculator](https://masteringelectronicsdesign.com/differential-amplifier-calculator-2/) to help us build the op-amp circuit. The image below shows the circuit and the values to use.
+To handle amplification, a differential op-amp can be used to handle both level shifting and amplification. We would like the lowest temperature (i.e. -40°C) to be 4 V instead of the original 2.44 V (from the diode) and the highest temperature (120°C) to be 1 V instead of 1.30 V. Thus the gain for the op-amp will be 2.63 (= [4V - 1V]/[2.44V - 1.3V]). We used this [differential amplifier calculator](https://masteringelectronicsdesign.com/differential-amplifier-calculator-2/) to help us build the op-amp circuit. The image below shows the circuit and the values to use.
 
 ![Op-amp calculation](./opamp-calculation.png)
 
-In addition, to handle obtaining the V_REF = 1.3 V, we plan to use a voltage divider.
+In addition, to handle obtaining the V_REF = 1.48 V, we plan to use a voltage divider. The V_REF was computed by using the given equation: V_out = A(V_in - V_ref) + V_ref, where A is the gain. In our case, V_in = 1.3 V and V_out = 1.0 V.
 
 The multiplexer will handle from what diode we will read from at a time. The 16:1 multiplexer has 4 select pins, which allow for addressing in a way. It is helpful to think of the 4 pins corresponding to a number in binary (e.g. 0000 = 0, 0001 = 1, 0010 = 2, etc). Each number corresponds to one input pin. So if the select pins were set to 0000, then the output of the multiplexer would return data from I_0 or input "pin" 0. We can take advantage of this addressing with the Arduino Nano. From the Nano, we can send 1s or 0s to the 4 select pins of the multiplexer. A program can be written to cycle through all of the temperature diodes from 0 (0000) through 15 (1111) and grab the output every time a new set of bits is sent to the multiplexer. From there calculating the highest temperature, average temperature, and other analysis can be done.
+
+The 12-to-5 V step-down converter is able to put out 2.5 W. By summing the power consumption of elements connected to the 5V line, the estimated sum turns out to be 1.78 W, which is < 2.5 W. Since each temperature diode is 3.1 kΩ and is receiving 5 V, all 16 diodes dissipate about 0.129 W. The multiplexer consumes a max of 0.00004 W. The voltage divider consumes 0.00735 W. The op-amp is estimated to consume 0.05 W when the V_s is 15 V. Since ours is at 5 V, we will consume less power than 0.05 W. The Arduino Nano is estimated to consume a total of 1.6 W in our case because we are using 5 digital pins. [Someone](https://arduino.stackexchange.com/questions/926/what-is-the-maximum-power-consumption-of-the-arduino-nano-3-0) calculated that the Nano consumes 1.4 W to turn on, as the datasheet states the typical power consumption is TBC. The additional 0.2 W comes from 5 digital pins consuming each 40 mA max. Thus, summing all of the numbers comes out to 1.78 W.
 
 # 5. Findings
 
@@ -55,12 +59,13 @@ The multiplexer will handle from what diode we will read from at a time. The 16:
 The following lists parts not listed in the writeup, but are a part of our design:
 - Op-amp LM741
 - Capacitor: 0.01 µF
+- 12V to 5V converter: Recom R-78E5.0-0.5
 
 ## Schematic
 
 The image below features our schematic.
 
-![Schematic](./temp-schematic.png)
+![Schematic](./schematic.png)
 
 ## Schematic Flow Chart
 
