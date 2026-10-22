@@ -27,7 +27,7 @@ To build a temperature sensor, taking analog input and then converting it into d
 
 Firstly, the temperature diodes involved following a similar setup as to what was written in the datasheet. But since we are using a 5V source and aimed to achieve a forward (typical) current of 1 mA, our needed resistor ended up being 3.1 kΩ. Given that I_out = [V_cc - V_out] / R, and V_cc = 5, V_out = 1.86, and I_out = 0.001 A, R = 3.1 kΩ.
 
-Given that our temperature sensors' output voltage ranges from 1.30 V to 2.44 V and that the Arduino's ADC has 10-bit resolution with a default reference voltage of 5 V, we can shift and amplify the signals from the temperature sensors in such a way that its range becomes 0 - 5 V. Keeping this in mind, we can also use an RC low-pass filter to keep lower frequency ranges since temperature signals change slowly in comparison to other signals. This will help filter out any electrical noise. Using [this low pass filter calculator](https://www.digikey.com/en/resources/conversion-calculators/conversion-calculator-low-pass-and-high-pass-filter), to achieve a cutoff frequency at ~10 kHz, our resistor would need to be 1.6 kΩ and the capacitance would need to be 0.01 μF.
+Given that our temperature sensors' output voltage ranges from 1.30 V to 2.44 V and that the Arduino's ADC has 10-bit resolution with a default reference voltage of 5 V, we can shift and amplify the signals from the temperature sensors in such a way that its range becomes 1 -  V. Keeping this in mind, we can also use an RC low-pass filter to keep lower frequency ranges since temperature signals change slowly in comparison to other signals. This will help filter out any electrical noise. Using [this low pass filter calculator](https://www.digikey.com/en/resources/conversion-calculators/conversion-calculator-low-pass-and-high-pass-filter), to achieve a cutoff frequency at ~10 kHz, our resistor would need to be 1.6 kΩ and the capacitance would need to be 0.01 μF.
 
 To handle amplification, a differential op-amp can be used to handle both level shifting and amplification. We would like the lowest temperature (i.e. -40°C) to be 4 V instead of the original 2.44 V (from the diode) and the highest temperature (120°C) to be 1 V instead of 1.30 V. Thus the gain for the op-amp will be 2.63 (= [4V - 1V]/[2.44V - 1.3V]). We used this [differential amplifier calculator](https://masteringelectronicsdesign.com/differential-amplifier-calculator-2/) to help us build the op-amp circuit. The image below shows the circuit and the values to use.
 
@@ -75,58 +75,73 @@ The image below is our schematic flow chart. The analog signal from the temperat
 
 ## Code
 
+The following is what we have so far for the code. Everything but linear interpolation has been implemented. Bit shifting is used to create 0 through 15 in binary for the select lines.
+
 ```C
-const int TEMP_PIN = A0;
+#include <Wire.h>
+
+const int TEMP_PIN = 0;
 const int LED_PIN = 13;
-const int MUX_S0 = 2;
-const int MUX_S1 = 3;
-const int MUX_S2 = 4;
-const int MUX_S3 = 5;
+const int NUM_TEMP_SENSORS = 16;
 
 // Temperature when the ADC is at 0V in Celsius
-const double TEMP_AT_0V = 120.0;
-const double TEMP_AT_5V = -40.0;
+const float TEMP_AT_0V = 120.0;
+const float TEMP_AT_5V = -40.0;
 
 const float TEMP_MAX = 60.0;
 
 byte selectArray[16][4]; // Hold 0000 in selectArray[0][0-3], 0001 in [1][0-3], etc.
+const int selectLines[4] = { 5, 4, 3, 2 }; // Pins to multiplexer select lines
 
 void setup() {
     pinMode(LED_PIN, OUTPUT);
-    pinMode(MUX_S0, OUTPUT);
-    pinMode(MUX_S1, OUTPUT);
-    pinMode(MUX_S2, OUTPUT);
-    pinMode(MUX_S3, OUTPUT);
+    for (int i = 0; i < 4; i++) {
+        pinMode(selectLines[i], OUTPUT);
+    }
 
     pinMode(TEMP_PIN, INPUT);
 
-    // Double check logic for this
     for (int num = 0; num < 16; num++) {
         for (int bit = 3; bit >= 0; bit--) {
-            selectArray[num][3 - bit] = (num >> bit) & 1; // bit shift num by bit times and mask the lowest bit
+            selectArray[num][3 - bit] = (num >> bit) & 1; // Bit shift num by bit times and mask the lowest bit
         }
     }
 
+    Wire.begin();
     Serial.begin(9600);
 }
 
 void loop() {
-    // Send select info to MUX, for each do the following
+    float highestTemp = 0;
+    int highestTempChannel = 0;
 
-    // Get an average of temperature readings
-    double sum = 0.0;
-    for (int i = 0; i < 10; i++) {
-        sum += analogRead(TEMP_PIN);
-        delay(2);
+    // For each MUX channel
+    for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
+        selectMuxChannel(i);
+        delayMicroseconds(20);
+        float tmpTemp = analogRead(TEMP_PIN);
+        // Linear interpolation will need to take place!!!!
+        if (tmpTemp > highestTemp) {
+            highestTemp = tmpTemp;
+            highestTempChannel = i;
+        }
+        // Turn on LED if the temperature is too high
+        if (tmpTemp > TEMP_MAX) {
+            digitalWrite(LED_PIN, HIGH);
+        }
     }
-    double rawAnalog = sum / 10.0;
-    // Linear interpolation, as suggested by the datasheet
 
-    if (tempC > TEMP_MAX) {
-        digitalWrite(LED_PIN, HIGH);
+    // Report highest temperature via I2C
+    Wire.beginTransmission(0x67);
+    Wire.write(highestTemp); // Do we also want the channel number?
+    Wire.endTransmission();
+    delay(500);
+}
+
+void selectMuxChannel(int channelNum) {
+    for (int i = 0; i < 4; i++) {
+        digitalWrite(selectLines[i], selectArray[channelNum][i]);
     }
-
-    delay(200);
 }
 ```
 
