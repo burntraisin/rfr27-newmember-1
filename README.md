@@ -1,9 +1,17 @@
+# Hi!
+
+This is Group 1's repo for the 2027 RFR Electronics New Member project.
+
+So, where is everything?
+- `docs/` contains our [design doc](./docs/design-doc.md) and our [slide deck](./docs/slide-deck.md)
+    - `datasheets/` contains datasheets
+- `hardware/` contains our schematic
+- `software/` contains the Arduino code
+
 # Todo List
-- [ ] Deliver design presentation?
-- [ ] Complete design phase [due 10-18 Sun]
-    - [ ] Learn Altium Designer
-    - [ ] Design schematic
-    - [ ] Design document
+
+- [X] Deliver design presentation
+- [X] Complete design phase [due 10-18 Sun]
 - [ ] Complete assembly & manufacturing [due 11-01 Sun]
 
 # Links
