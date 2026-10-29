@@ -9,6 +9,7 @@
 |Editor|Date|Revision|
 |---|---|---|
 |Rebekah Han|2026-10-16|1|
+|Rebekah Han|2026-10-28|2|
 
 # 2. Purpose
 
@@ -25,9 +26,9 @@ To build a temperature sensor, taking analog input and then converting it into d
 
 # 4. Research
 
-Firstly, the temperature diodes involved following a similar setup as to what was written in the datasheet. But since we are using a 5V source and aimed to achieve a forward (typical) current of 1 mA, our needed resistor ended up being 3.1 kΩ. Given that I_out = [V_cc - V_out] / R, and V_cc = 5, V_out = 1.86, and I_out = 0.001 A, R = 3.1 kΩ.
+Firstly, the temperature diodes involved following a similar setup as to what was written in the datasheet. Given feedback, we plan to use a common pull up on the MUX output. The datasheet states that the forward current is I_reg = \frac{V_CC - V_out}{R}, and we plan to use the 680 Ω resistor as shown in the datasheet. This suits our case because at the minimum temperature, the I_reg = (5 - 2.44) / 680 = 3.76 mA. At the max, the I_reg = (5 - 1.3) / 680 = 5.44 mA. Thus, the I_reg will always be above the minimum operating current at 0.4 mA and below the max operating current at 15 mA.
 
-Given that our temperature sensors' output voltage ranges from 1.30 V to 2.44 V and that the Arduino's ADC has 10-bit resolution with a default reference voltage of 5 V, we can shift and amplify the signals from the temperature sensors in such a way that its range becomes 1 -  V. Keeping this in mind, we can also use an RC low-pass filter to keep lower frequency ranges since temperature signals change slowly in comparison to other signals. This will help filter out any electrical noise. Using [this low pass filter calculator](https://www.digikey.com/en/resources/conversion-calculators/conversion-calculator-low-pass-and-high-pass-filter), to achieve a cutoff frequency at ~10 kHz, our resistor would need to be 1.6 kΩ and the capacitance would need to be 0.01 μF.
+Given that our temperature sensors' output voltage ranges from 1.30 V to 2.44 V and that the Arduino's ADC has 10-bit resolution with a default reference voltage of 5 V, we can shift and amplify the signals from the temperature sensors in such a way that its range becomes 1 - 4 V. Keeping this in mind, we can also use an RC low-pass filter to keep lower frequency ranges since temperature signals change slowly in comparison to other signals. This will help filter out any electrical noise. Using [this low pass filter calculator](https://www.digikey.com/en/resources/conversion-calculators/conversion-calculator-low-pass-and-high-pass-filter), to achieve a cutoff frequency at ~10 kHz, our resistor would need to be 1.6 kΩ and the capacitance would need to be 0.01 μF. This bandwidth excludes frequencies > 10 kHz. Common values for the cutoff frequency are between 1 - 20 kHz. This plays a role into the delay in the Arduino code because we need to find the time it takes for the capacitor to charge the voltage we want to sample. To do this, we can first find the time constant of the RC filter by multiplying R and C, which is 16 microseconds (µs). Then, we would need to find the time (or the factor by which) it takes for the capacitor to charge to match the resolution of the Nano's 10-bit ADC. (Generally, the higher the resolution, the more time it takes for the voltage to settle.) This can be found by solving for t (time) in the following RC step-response equation: V(t) = V_t * (1-e^{\frac{t}{\tau}}). We would set V(t) to 0.9995 because we want our reading is accurate to within half of the LSB (least significant bit of error). The LSB is 1/1024 (as a 10-bit ADC has 2^10 voltage steps). So 1 - 1/(2*1024) = 0.9995. When solving the equation for t, we get the relationship that 7.6 * \tau. We can round down to 7 because we are still quite accurate. When we plug in our value for \tau, the time is 112 µs. Thus, it takes 112 µs for the filter to settle. We can add a delay of 115 µs in between multiplexing.
 
 To handle amplification, a differential op-amp can be used to handle both level shifting and amplification. We would like the lowest temperature (i.e. -40°C) to be 4 V instead of the original 2.44 V (from the diode) and the highest temperature (120°C) to be 1 V instead of 1.30 V. Thus the gain for the op-amp will be 2.63 (= [4V - 1V]/[2.44V - 1.3V]). We used this [differential amplifier calculator](https://masteringelectronicsdesign.com/differential-amplifier-calculator-2/) to help us build the op-amp circuit. The image below shows the circuit and the values to use.
 
@@ -124,7 +125,7 @@ void loop() {
     // For each MUX channel
     for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
         selectMuxChannel(i);
-        delayMicroseconds(20);
+        delayMicroseconds(115);
         float tmpTemp = analogRead(TEMP_PIN);
         // Calculate the V_diode (V_out in datasheet of temperature diodes)
         float voltDiode = (tmpTemp - VOLTAGE_OFFSET) / GAIN;

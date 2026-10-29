@@ -42,7 +42,7 @@ void loop() {
     // For each MUX channel
     for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
         selectMuxChannel(i);
-        delayMicroseconds(20);
+        delayMicroseconds(115);
         float tmpTemp = analogRead(TEMP_PIN);
         // Calculate the V_diode (V_out in datasheet of temperature diodes)
         float voltDiode = (tmpTemp - VOLTAGE_OFFSET) / GAIN;
@@ -64,7 +64,6 @@ void loop() {
     Wire.write((uint8_t *)&highestTemp, sizeof(highestTemp));
     Wire.write(highestTempChannel);
     Wire.endTransmission();
-    delay(500);
 }
 
 void selectMuxChannel(int channelNum) {
