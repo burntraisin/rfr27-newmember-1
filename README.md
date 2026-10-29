@@ -23,6 +23,7 @@ So, where is everything?
 - [X] Add justification for pull-ups.
 - [ ] Not dissipating all resistors at the same time, don’t need to calculate power for all of them.
 - [X] Justify delay in code.
+- [ ] Use MOSFET for LED
 
 # Links
 
