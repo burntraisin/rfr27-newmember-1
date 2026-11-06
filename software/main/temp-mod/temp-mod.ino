@@ -48,6 +48,7 @@ void loop() {
         float voltDiode = (tmpTemp - VOLTAGE_OFFSET) / GAIN;
         // Lookup/linear interpolate corresponding temperature in table
         float realTemp = calculateTemp(voltDiode);
+        Serial.println(realTemp); // For debug
         if (realTemp > highestTemp) {
             highestTemp = realTemp;
             highestTempChannel = i;
