@@ -42,7 +42,7 @@ void loop() {
     // For each MUX channel
     for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
         selectMuxChannel(i);
-        delayMicroseconds(115);
+        delayMicroseconds(125);
         float tmpTemp = analogRead(TEMP_PIN);
         // Calculate the V_diode (V_out in datasheet of temperature diodes)
         float voltDiode = (tmpTemp - VOLTAGE_OFFSET) / GAIN;
