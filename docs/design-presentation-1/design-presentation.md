@@ -11,7 +11,7 @@ marp: true
 # Outline
 - Schematic + flowchart
 - Major changes
-- Schematic details
+- Schematic details + code
 - Troubleshooting
 
 ---
@@ -107,6 +107,7 @@ for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
 - RC low-pass filter and differential op-amp to amplify the signal
 - Multiplexer and Arduino Nano
 - 12V to 5V step down converter (power consumption)
+- Code
 
 ---
 
@@ -122,7 +123,8 @@ for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
 ---
 
 - To get the $V_{REF}$, we used a voltage divider
-- The $V_{REF}$ was computed by using the given equation: $V_{out} = A(V_{in} - V_{REF}) + V_{REF}$, where A is the gain. In our case, $V_{in}$ = 1.3 V and $V_{out}$ = 1.0 V.
+- The $V_{REF}$ was computed by using the referenced non-inverting op-amp equation: $V_{out} = A(V_{in} - V_{REF}) + V_{REF}$, where A is the gain.
+  - In our case, $V_{in}$ = 1.3 V and $V_{out}$ = 1.0 V.
 
 ---
 
@@ -139,6 +141,107 @@ for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
 - By summing the power consumption of elements connected to the 5V line, the estimated sum turns out to be 1.69 W, which is < 2.5 W.
 
 *The pull-up resistor is 680 Ω and is receiving 5 V, so it will dissipate 0.037 W. The multiplexer consumes a max of 0.00004 W. The voltage divider consumes 0.00735 W. The op-amp is estimated to consume 0.05 W when the $V_s$ is 15 V. Since ours is at 5 V, we will consume less power than 0.05 W. The Arduino Nano is estimated to consume a total of 1.6 W in our case because we are using 5 digital pins. [Someone](https://arduino.stackexchange.com/questions/926/what-is-the-maximum-power-consumption-of-the-arduino-nano-3-0) calculated that the Nano consumes 1.4 W to turn on, as the datasheet states the typical power consumption is TBC. The additional 0.2 W comes from 5 digital pins consuming each 40 mA max.*
+
+---
+
+## Code
+
+### setup()
+
+```cpp
+void setup() {
+    // Activate pins
+    pinMode(LED_PIN, OUTPUT);
+    for (int i = 0; i < 3; i++) {
+        pinMode(selectLines[i], OUTPUT);
+    }
+
+    pinMode(TEMP_PIN, INPUT);
+
+    // Setup binary codes for MUX select lines
+    for (int num = 0; num < 8; num++) {
+        for (int bit = 3; bit >= 0; bit--) {
+            selectArray[num][3 - bit] = (num >> bit) & 1; // Bit shift num by bit times and mask the lowest bit
+        }
+    }
+
+    Wire.begin();
+    Serial.begin(9600);
+}
+```
+
+---
+
+### loop()
+
+```cpp
+void loop() {
+    float highestTemp = 0.0;
+    uint8_t highestTempChannel = 0;
+
+    // For each MUX channel
+    for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
+        selectMuxChannel(i);
+        delayMicroseconds(125);
+        float tmpTemp = analogRead(TEMP_PIN);
+        // Calculate the V_diode (V_out in datasheet of temperature diodes)
+        float voltDiode = (tmpTemp - VOLTAGE_OFFSET) / GAIN;
+        // Lookup/linear interpolate corresponding temperature in table
+        float realTemp = calculateTemp(voltDiode);
+        Serial.println(realTemp); // For debug
+        if (realTemp > highestTemp) {
+            highestTemp = realTemp;
+            highestTempChannel = i;
+        }
+        // Turn on LED if the temperature is too high
+        if (realTemp > TEMP_MAX) {
+            digitalWrite(LED_PIN, HIGH);
+        }
+    }
+
+    // Report highest temperature via I2C
+    // First 4 bytes are the highestTemp and the 5th byte is the highestTempChannel
+    Wire.beginTransmission(0x67);
+    Wire.write((uint8_t *)&highestTemp, sizeof(highestTemp));
+    Wire.write(highestTempChannel);
+    Wire.endTransmission();
+}
+```
+
+---
+
+### calculateTemp()
+
+```cpp
+/**
+*  calculateTemp finds the range in which voltDiode is valid in so that
+*  linear interpolation can be performed. The equation used is:
+*  y = y_1 + [(x - x_1) * \frac{y_2 - y_1}{x_2 - x_1}]
+*  y = return val (temperature)
+*  x = voltDiode
+*  x_1 = volts[i]
+*  x_2 = volts[i + 1]
+*  y_1 = temps[i]
+*  y_2 = temps[i + 1]
+*  The function returns the temperature.
+*/
+float calculateTemp(float voltDiode) {
+    if (voltDiode >= volts[0]) {
+        return temps[0];
+    }
+    if (voltDiode <= volts[32]) {
+        return temps[32];
+    }
+
+    for (int i = 0; i <= 33; i++) {
+        if (voltDiode <= volts[i] && voltDiode  >= volts[i + 1]) {
+            float fraction = (temps[i + 1] - temps[i]) / (volts[i + 1] - volts[i]);
+            float mul = (voltDiode - volts[i]) * fraction;
+            return temps[i] + mul;
+        }
+    }
+}
+```
 
 ---
 
