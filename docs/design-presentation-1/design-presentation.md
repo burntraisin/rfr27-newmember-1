@@ -46,6 +46,14 @@ marp: true
 
 ## RC Low-Pass Filter Simulation
 
+![alt text](rc-sim-bode-plot.png)
+
+45° phase angle at 10 kHz.
+
+---
+
+![alt text](rc-sim-ltspice.png)
+
 ---
 
 ## Pull-Up on the MUX Output
