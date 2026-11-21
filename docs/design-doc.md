@@ -26,19 +26,60 @@ To build a temperature sensor, taking analog input and then converting it into d
 
 # 4. Research
 
-Firstly, the temperature diodes involved following a similar setup as to what was written in the datasheet. Given feedback, we plan to use a common pull up on the MUX output. The datasheet states that the forward current is I_reg = \frac{V_CC - V_out}{R}, and we plan to use the 680 Ω resistor as shown in the datasheet. This suits our case because at the minimum temperature, the I_reg = (5 - 2.44) / 680 = 3.76 mA. At the max, the I_reg = (5 - 1.3) / 680 = 5.44 mA. Thus, the I_reg will always be above the minimum operating current at 0.4 mA and below the max operating current at 15 mA.
+Firstly, the temperature diodes involved following a similar setup as to what was written in the datasheet. Given feedback, we plan to use a common pull up on the MUX output. The datasheet states that the forward current is $I_{reg} = \frac{V_{CC} - V_{out}}{R}$, and we plan to use the 680 Ω resistor as shown in the datasheet. This suits our case because at the minimum temperature, the $I_{reg} = \frac{5 - 2.44}{680}$ = 3.76 mA. At the max, the $I_{reg} = {5 - 1.3}{680}$ = 5.44 mA. Thus, the $I_{reg}$ will always be above the minimum operating current at 0.4 mA and below the max operating current at 15 mA.
 
-Given that our temperature sensors' output voltage ranges from 1.30 V to 2.44 V and that the Arduino's ADC has 10-bit resolution with a default reference voltage of 5 V, we can shift and amplify the signals from the temperature sensors in such a way that its range becomes 1 - 4 V. Keeping this in mind, we can also use an RC low-pass filter to keep lower frequency ranges since temperature signals change slowly in comparison to other signals. This will help filter out any electrical noise. Using [this low pass filter calculator](https://www.digikey.com/en/resources/conversion-calculators/conversion-calculator-low-pass-and-high-pass-filter), to achieve a cutoff frequency at ~10 kHz, our resistor would need to be 1.6 kΩ and the capacitance would need to be 0.01 μF. This bandwidth excludes frequencies > 10 kHz. Common values for the cutoff frequency are between 1 - 20 kHz. This plays a role into the delay in the Arduino code because we need to find the time it takes for the capacitor to charge the voltage we want to sample. To do this, we can first find the time constant of the RC filter by multiplying R and C, which is 16 microseconds (µs). Then, we would need to find the time (or the factor by which) it takes for the capacitor to charge to match the resolution of the Nano's 10-bit ADC. (Generally, the higher the resolution, the more time it takes for the voltage to settle.) This can be found by solving for t (time) in the following RC step-response equation: V(t) = V_t * (1-e^{\frac{t}{\tau}}). We would set V(t) to 0.9995 because we want our reading is accurate to within half of the LSB (least significant bit of error). The LSB is 1/1024 (as a 10-bit ADC has 2^10 voltage steps). So 1 - 1/(2*1024) = 0.9995. When solving the equation for t, we get the relationship that 7.6 * \tau. We can round down to 7 because we are still quite accurate. When we plug in our value for \tau, the time is 112 µs. Thus, it takes 112 µs for the filter to settle. We can add a delay of 115 µs in between multiplexing.
+Given that our temperature sensors' output voltage ranges from 1.30 V to 2.44 V and that the Arduino's ADC has 10-bit resolution with a default reference voltage of 5 V, we can shift and amplify the signals from the temperature sensors in such a way that its range becomes 1 - 4 V. Keeping this in mind, we can also use an RC low-pass filter to keep lower frequency ranges since temperature signals change slowly in comparison to other signals. This will help filter out any electrical noise. Using [this low pass filter calculator](https://www.digikey.com/en/resources/conversion-calculators/conversion-calculator-low-pass-and-high-pass-filter), to achieve a cutoff frequency at ~10 kHz, our resistor would need to be 1.6 kΩ and the capacitance would need to be 0.01 μF. We chose a 10 kHz cutoff because we want to include changing temperature signals, which happens at < 10,000 times/sec. Only really fast noise gets filtered out. Physical temperature changes usually occur below 1 Hz in a room or outside (i.e. a second or two). This higher cutoff frequency helped keep our R and C smaller, which allows the filter to settle quickly for the ADC.
 
-To handle amplification, a differential op-amp can be used to handle both level shifting and amplification. We would like the lowest temperature (i.e. -40°C) to be 4 V instead of the original 2.44 V (from the diode) and the highest temperature (120°C) to be 1 V instead of 1.30 V. Thus the gain for the op-amp will be 2.63 (= [4V - 1V]/[2.44V - 1.3V]). We used this [differential amplifier calculator](https://masteringelectronicsdesign.com/differential-amplifier-calculator-2/) to help us build the op-amp circuit. The image below shows the circuit and the values to use.
 
-![Op-amp calculation](./opamp-calculation.png)
+![alt text](./design-presentation-1/rc-sim-bode-plot.png)
+*^ Low-pass filter simulation. Note the 45° phase angle at 10 kHz, our cutoff frequency.*
 
-In addition, to handle obtaining the V_REF = 1.48 V, we plan to use a voltage divider. The V_REF was computed by using the given equation: V_out = A(V_in - V_ref) + V_ref, where A is the gain. In our case, V_in = 1.3 V and V_out = 1.0 V.
+![alt text](./design-presentation-1/rc-sim-ltspice.png)
+*^ Circuit simulated in LTSpice.*
+
+This plays a role into the delay in the Arduino code because we need to find the time it takes for the capacitor to charge the voltage we want to sample.
+
+Find the time it takes for the capacitor to charge so that we can take a sample.
+1. Find the time constant of the RC filter: $\tau = R * C = 16µs$
+    - $R=1.6K$ and $C=0.01\mu F$
+2. Find the time/factor by which it takes for the capacitor to charge to match the resolution of the Nano's 10-bit ADC: solve for $t$: $V(t) = V_t * (1-e^{-\frac{t}{\tau}}).$
+
+1. Set $V(t) = 0.9995 * V_t$ b/c we want our reading to be accurate w/in half of the LSB of errror ($\frac{1}{1024}$ because the 10-bit ADC has $2^{10}$ voltage steps). Thus $1 - \frac{1}{(2*1024)} = 0.9995$.
+
+2. $0.99951 * V_t = V_t * (1-e^{-\frac{t}{\tau}})$
+
+3. $0.99951 = 1-e^{-\frac{t}{\tau}}$
+
+4. $e^{\frac{t}{\tau}} = 1-0.99951 = 0.00049$
+
+5. $t=7.62*\tau$.
+
+6. $7.62 * 16\mu s \approx 122 \mu s$
+
+Thus, it takes 122 µs for the filter to settle. We added a delay of 125 µs in between multiplexing.
+
+```cpp
+for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
+        selectMuxChannel(i);
+        delayMicroseconds(125); // HERE!
+        float tmpTemp = analogRead(TEMP_PIN);
+        // Calculate the V_diode (V_out in datasheet of temperature diodes)
+        float voltDiode = (tmpTemp - VOLTAGE_OFFSET) / GAIN;
+        // More code...
+    }
+```
+
+To handle amplification, a differential op-amp can be used to handle both level shifting and amplification. We would like the lowest temperature (i.e. -40°C) to be 4 V instead of the original 2.44 V (from the diode) and the highest temperature (120°C) to be 1 V instead of 1.30 V. Thus the gain for the op-amp will be $2.63 = \frac{4V - 1V}{2.44V - 1.3V}$. We used this [differential amplifier calculator](https://masteringelectronicsdesign.com/differential-amplifier-calculator-2/) to help us build the op-amp circuit. The image below shows the circuit and the values to use.
+
+![Op-amp calculation](./design-presentation-1/opamp-calculation.png)
+
+To get the $V_{REF}$, we used a voltage divider. The $V_{REF}$ was computed by using the referenced non-inverting op-amp equation: $V_{out} = A(V_{in} - V_{REF}) + V_{REF}$, where A is the gain. In our case, $V_{in}$ = 1.3 V and $V_{out}$ = 1.0 V.
 
 The multiplexer will handle from what diode we will read from at a time. The 16:1 multiplexer has 4 select pins, which allow for addressing in a way. It is helpful to think of the 4 pins corresponding to a number in binary (e.g. 0000 = 0, 0001 = 1, 0010 = 2, etc). Each number corresponds to one input pin. So if the select pins were set to 0000, then the output of the multiplexer would return data from I_0 or input "pin" 0. We can take advantage of this addressing with the Arduino Nano. From the Nano, we can send 1s or 0s to the 4 select pins of the multiplexer. A program can be written to cycle through all of the temperature diodes from 0 (0000) through 15 (1111) and grab the output every time a new set of bits is sent to the multiplexer. From there calculating the highest temperature, average temperature, and other analysis can be done.
 
-The 12-to-5 V step-down converter is able to put out 2.5 W. By summing the power consumption of elements connected to the 5V line, the estimated sum turns out to be 1.78 W, which is < 2.5 W. Since each temperature diode is 3.1 kΩ and is receiving 5 V, all 16 diodes dissipate about 0.129 W. The multiplexer consumes a max of 0.00004 W. The voltage divider consumes 0.00735 W. The op-amp is estimated to consume 0.05 W when the V_s is 15 V. Since ours is at 5 V, we will consume less power than 0.05 W. The Arduino Nano is estimated to consume a total of 1.6 W in our case because we are using 5 digital pins. [Someone](https://arduino.stackexchange.com/questions/926/what-is-the-maximum-power-consumption-of-the-arduino-nano-3-0) calculated that the Nano consumes 1.4 W to turn on, as the datasheet states the typical power consumption is TBC. The additional 0.2 W comes from 5 digital pins consuming each 40 mA max. Thus, summing all of the numbers comes out to 1.78 W.
+The 12-to-5 V step-down converter is able to put out 2.5 W. By summing the power consumption of elements connected to the 5V line, the estimated sum turns out to be 1.69 W, which is < 2.5 W.
+
+The pull-up resistor is 680 Ω and is receiving 5 V, so it will dissipate 0.037 W. The multiplexer consumes a max of 0.00004 W. The voltage divider consumes 0.00735 W. The op-amp is estimated to consume 0.05 W when the $V_s$ is 15 V. Since ours is at 5 V, we will consume less power than 0.05 W. The Arduino Nano is estimated to consume a total of 1.6 W in our case because we are using 5 digital pins. [Someone](https://arduino.stackexchange.com/questions/926/what-is-the-maximum-power-consumption-of-the-arduino-nano-3-0) calculated that the Nano consumes 1.4 W to turn on, as the datasheet states the typical power consumption is TBC. The additional 0.2 W comes from 5 digital pins consuming each 40 mA max.
 
 # 5. Findings
 
@@ -66,13 +107,13 @@ The following lists parts not listed in the writeup, but are a part of our desig
 
 The image below features our schematic.
 
-![Schematic](./schematic.png)
+![Schematic](./design-presentation-1/schematic.png)
 
 ## Schematic Flow Chart
 
 The image below is our schematic flow chart. The analog signal from the temperature diodes are fed through the multiplexer, which gets through the RC low pass filter, is then amplified, and then fed to the Arduino Nano. The signal is translated into a digital signal, which will be made available over I2C on a digital pin. If the temperature is > 60°C, then the red LED will turn on.
 
-![Schematic flowchart](./schematic-flowchart.png)
+![Schematic flowchart](./design-presentation-1/schematic-flowchart.png)
 
 ## Code
 
